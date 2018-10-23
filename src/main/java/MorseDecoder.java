@@ -3,10 +3,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.InvalidParameterException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Scanner;
+import java.util.*;
 
 /**
  * Decode Morse code from a WAV file.
@@ -54,14 +51,24 @@ public class MorseDecoder {
 
         double[] sampleBuffer = new double[BIN_SIZE * inputFile.getNumChannels()];
         for (int binIndex = 0; binIndex < totalBinCount; binIndex++) {
+            double sum = 0;
             // Get the right number of samples from the inputFile
+            for (int i = 0; i < inputFile.getNumChannels(); i++) {
+                inputFile.readFrames(sampleBuffer, i * sampleBuffer.length, sampleBuffer.length);
+            }
             // Sum all the samples together and store them in the returnBuffer
+            //System.out.println(Arrays.toString(sampleBuffer));
+            for (double d : sampleBuffer) {
+                sum += Math.abs(d);
+            }
+            returnBuffer[binIndex] = sum;
         }
+        //System.out.println(Arrays.toString(returnBuffer));
         return returnBuffer;
     }
 
     /** Power threshold for power or no power. You may need to modify this value. */
-    private static final double POWER_THRESHOLD = 10;
+    private static final double POWER_THRESHOLD = 2;
 
     /** Bin threshold for dots or dashes. Related to BIN_SIZE. You may need to modify this value. */
     private static final int DASH_BIN_COUNT = 8;
@@ -82,13 +89,63 @@ public class MorseDecoder {
          * There are four conditions to handle. Symbols should only be output when you see
          * transitions. You will also have to store how much power or silence you have seen.
          */
+        int power = 0;
+        int silence = 0;
+        String output = "";
+        String tempOutput = "";
+        boolean pow, wasPow, sil, wasSil;
+        for (int i = 0; i < powerMeasurements.length; i++) {
+            if (Math.abs(powerMeasurements[i]) > POWER_THRESHOLD) {
+                //System.out.println("tone");
+                pow = true;
+                sil = false;
+            } else {
+                //System.out.println("silence");
+                pow = false;
+                sil = true;
+            }
 
-        // if ispower and waspower
-        // else if ispower and not waspower
-        // else if issilence and wassilence
-        // else if issilence and not wassilence
+            if (power == 0) {
+                wasPow = false;
+            } else {
+                wasPow = true;
+            }
 
-        return "";
+            if (silence == 0) {
+                wasSil = false;
+            } else {
+                wasSil = true;
+            }
+
+            if (pow && wasPow) {
+                power++;
+                if (power == DASH_BIN_COUNT / 2) {
+                    tempOutput = ".";
+                } else if (power == DASH_BIN_COUNT) {
+                    tempOutput = "-";
+                }
+            } else if (pow && !wasPow) {
+                power++;
+                //System.out.println("Appended silence");
+                output += tempOutput;
+                tempOutput = "";
+                silence = 0;
+            } else if (sil && wasSil) {
+                silence++;
+                if (silence == DASH_BIN_COUNT) {
+                    tempOutput = " ";
+                }
+            } else if (sil && !wasSil) {
+                silence++;
+                //System.out.println("Appended tone");
+                output += tempOutput;
+                tempOutput = "";
+                power = 0;
+            }
+        }
+
+        System.out.println("Output is: " + output);
+        return output;
     }
 
     /**
